@@ -3,6 +3,9 @@ import { Link } from 'react-router-dom';
 import { MessageSquare, MapPin, Clock, ChevronRight, Inbox } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
+// Use environment variable or fallback to Render backend
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://backend-sfrm.onrender.com';
+
 const FALLBACK = 'https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?auto=format&fit=crop&w=200&q=60';
 
 function timeAgo(dateStr) {
@@ -23,7 +26,8 @@ export default function Messages() {
   useEffect(() => {
     if (!user) return;
     const token = localStorage.getItem('rentrow_token');
-    fetch('http://localhost:5000/api/messages/inbox', {
+    // CHANGED: Use API_BASE_URL instead of localhost
+    fetch(`${API_BASE_URL}/api/messages/inbox`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then(r => r.json())
