@@ -1,14 +1,15 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { AlertCircle } from 'lucide-react';
+import { AlertCircle, Eye, EyeOff } from 'lucide-react';
 
 export default function Login() {
-  const [tab,      setTab]      = useState('otp');  // 'otp' | 'password'
-  const [email,    setEmail]    = useState('');
-  const [password, setPassword] = useState('');
-  const [error,    setError]    = useState(null);
-  const [loading,  setLoading]  = useState(false);
+  const [tab,          setTab]          = useState('otp');   // 'otp' | 'password'
+  const [email,        setEmail]        = useState('');
+  const [password,     setPassword]     = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [error,        setError]        = useState(null);
+  const [loading,      setLoading]      = useState(false);
   const { login }  = useAuth();
   const navigate   = useNavigate();
 
@@ -44,8 +45,10 @@ export default function Login() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Login failed.');
-      login(data.user, data.token);
-      navigate('/');
+
+      // Persist auth state FIRST, then navigate to home
+      await login(data.user, data.token);
+      navigate('/', { replace: true });
     } catch (err) {
       setError(err.message);
     } finally {
@@ -123,14 +126,35 @@ export default function Login() {
                 value={email} onChange={e => setEmail(e.target.value)} required
               />
             </div>
+
             <div className="form-group" style={{ marginBottom: '1.5rem' }}>
               <label className="form-label" htmlFor="login-password">Password</label>
-              <input
-                id="login-password" type="password" className="form-input"
-                placeholder="••••••••"
-                value={password} onChange={e => setPassword(e.target.value)} required
-              />
+              <div style={{ position: 'relative' }}>
+                <input
+                  id="login-password"
+                  type={showPassword ? 'text' : 'password'}
+                  className="form-input"
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  required
+                  style={{ paddingRight: '2.5rem' }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(v => !v)}
+                  style={{
+                    position: 'absolute', right: '0.75rem', top: '50%',
+                    transform: 'translateY(-50%)', background: 'none',
+                    border: 'none', cursor: 'pointer', color: 'var(--text-3)',
+                    display: 'flex', alignItems: 'center', padding: 0,
+                  }}
+                >
+                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
             </div>
+
             <button
               type="submit" className="btn btn-primary w-full"
               style={{ padding: '0.7rem', fontSize: '0.9375rem' }}
