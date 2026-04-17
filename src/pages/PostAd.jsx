@@ -6,9 +6,6 @@ import {
 } from 'lucide-react';
 import { PROPERTY_TYPES } from '../constants/propertyTypes';
 
-// Use environment variable or fallback to Render backend
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://backend-sfrm.onrender.com';
-
 const MAX_PHOTOS = 4;
 const STEPS = ['Details', 'Photos & Map', 'Payment'];
 
@@ -105,8 +102,7 @@ export default function PostAd() {
     setLoading(true);
     setError(null);
     try {
-      // CHANGED: Use API_BASE_URL instead of localhost
-      const res  = await fetch(`${API_BASE_URL}/api/properties`, {
+      const res  = await fetch('https://backend-sfrm.onrender.com/api/properties', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -141,8 +137,7 @@ export default function PostAd() {
       if (!res) throw new Error('Razorpay SDK failed to load');
 
       // 1. Create order
-      // CHANGED: Use API_BASE_URL instead of localhost
-      const orderRes = await fetch(`${API_BASE_URL}/api/payments/create-order`, {
+      const orderRes = await fetch('https://backend-sfrm.onrender.com/api/payments/create-order', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -164,8 +159,7 @@ export default function PostAd() {
         handler: async function (response) {
           // 3. Verify payment on our backend
           try {
-            // CHANGED: Use API_BASE_URL instead of localhost
-            const verifyRes = await fetch(`${API_BASE_URL}/api/payments/verify`, {
+            const verifyRes = await fetch('https://backend-sfrm.onrender.com/api/payments/verify', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
               body: JSON.stringify({
