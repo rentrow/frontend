@@ -1,152 +1,125 @@
-import { useState, useEffect } from 'react';
-import { useNavigate, useLocation, Link } from 'react-router-dom';
-import { AlertCircle, ShieldCheck, RefreshCw } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import { useNavigate, useSearchParams, Link } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
+import { ShieldCheck, RefreshCw, AlertCircle } from 'lucide-react';
 
-const API_URL = import.meta.env.VITE_API_URL || 'https://backend-sfrm.onrender.com';
+const OTP_EXPIRE_MIN = 10;
 
 export default function Verify() {
-  const [otp, setOtp] = useState('');
-  const [error, setError] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [resending, setResending] = useState(false);
-  const [resent, setResent] = useState(false);
-  const [timeLeft, setTimeLeft] = useState(600); // 10 minutes in seconds
-  
-  const navigate = useNavigate();
-  const location = useLocation();
-  
-  // Get email and purpose from URL params
-  const params = new URLSearchParams(location.search);
-  const email = params.get('email');
-  const purpose = params.get('purpose'); // 'REGISTER' or 'LOGIN'
+  const [params]      = useSearchParams();
+  const email         = params.get('email')   || '';
+  const purpose       = params.get('purpose') || 'REGISTER';
 
-  // Timer countdown
+  const [digits,   setDigits]   = useState(Array(6).fill(''));
+  const [error,    setError]    = useState(null);
+  const [loading,  setLoading]  = useState(false);
+  const [resending,setResending]= useState(false);
+  const [resent,   setResent]   = useState(false);
+  const [timeLeft, setTimeLeft] = useState(OTP_EXPIRE_MIN * 60);
+
+  const inputRefs = useRef([]);
+  const { login } = useAuth();
+  const navigate  = useNavigate();
+
+  /* Countdown timer */
   useEffect(() => {
     if (timeLeft <= 0) return;
-    const timer = setInterval(() => setTimeLeft(prev => prev - 1), 1000);
-    return () => clearInterval(timer);
+    const t = setInterval(() => setTimeLeft(s => s - 1), 1000);
+    return () => clearInterval(t);
   }, [timeLeft]);
-
-  // Redirect if no email
-  useEffect(() => {
-    if (!email) {
-      navigate('/register');
-    }
-  }, [email, navigate]);
-
-  const formatTime = (seconds) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-  };
-
-  const handleVerify = async (e) => {
-    e.preventDefault();
-    if (otp.length !== 6) {
-      setError('Please enter all 6 digits');
-      return;
-    }
-    
-    setLoading(true);
-    setError(null);
-
-    try {
-      // Get pending registration data if registering
-      let pendingData = {};
-      if (purpose === 'REGISTER') {
-        const pending = sessionStorage.getItem('rentrow_pending');
-        if (pending) {
-          pendingData = JSON.parse(pending);
-        }
-      }
-
-      const res = await fetch(`${API_URL}/api/auth/verify-otp`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email,
-          code: otp,
-          purpose,
-          name: pendingData.name,
-          phone: pendingData.phone,
-          role: pendingData.role || 'USER'
-        }),
-      });
-
-      const data = await res.json();
-      
-      if (!res.ok) {
-        throw new Error(data.error || 'Verification failed');
-      }
-
-      // Clear pending data
-      sessionStorage.removeItem('rentrow_pending');
-      
-      // Save token and user data
-      localStorage.setItem('rentrow_token', data.token);
-      localStorage.setItem('rentrow_user', JSON.stringify(data.user));
-      
-      // Redirect to home
-      navigate('/');
-    } catch (err) {
-      setError(err.message);
-      setOtp('');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleResendOTP = async () => {
-    if (resending || timeLeft > 540) return; // Only allow resend after 10 seconds
-    
-    setResending(true);
-    setError(null);
-    
-    try {
-      const res = await fetch(`${API_URL}/api/auth/send-otp`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, purpose }),
-      });
-      
-      const data = await res.json();
-      
-      if (!res.ok) {
-        throw new Error(data.error || 'Failed to resend OTP');
-      }
-      
-      // Reset timer to 10 minutes
-      setTimeLeft(600);
-      setResent(true);
-      setOtp('');
-      
-      // Show success message
-      if (data.dev_otp) {
-        console.log('Development OTP:', data.dev_otp);
-        alert(`Demo OTP: ${data.dev_otp}\nCheck console for more details.`);
-      } else {
-        alert('OTP resent successfully!');
-      }
-      
-      setTimeout(() => setResent(false), 3000);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setResending(false);
-    }
-  };
-
-  if (!email) {
-    return null;
-  }
 
   const expired = timeLeft <= 0;
   const mm = String(Math.floor(timeLeft / 60)).padStart(2, '0');
   const ss = String(timeLeft % 60).padStart(2, '0');
 
+  /* Handle digit input */
+  const handleChange = (idx, val) => {
+    if (!/^\d*$/.test(val)) return;
+    const next = [...digits];
+    next[idx]  = val.slice(-1);
+    setDigits(next);
+    if (val && idx < 5) inputRefs.current[idx + 1]?.focus();
+    // Auto-submit when last box filled
+    if (idx === 5 && val) {
+      const code = [...next.slice(0, 5), val].join('');
+      if (code.length === 6) submitCode(code);
+    }
+  };
+
+  const handleKeyDown = (idx, e) => {
+    if (e.key === 'Backspace' && !digits[idx] && idx > 0)
+      inputRefs.current[idx - 1]?.focus();
+  };
+
+  const handlePaste = (e) => {
+    const pasted = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
+    if (pasted.length === 6) {
+      setDigits(pasted.split(''));
+      inputRefs.current[5]?.focus();
+      submitCode(pasted);
+    }
+  };
+
+  const submitCode = async (code) => {
+    if (loading) return;
+    setLoading(true);
+    setError(null);
+
+    const pending = JSON.parse(sessionStorage.getItem('rentrow_pending') || '{}');
+
+    try {
+      const res  = await fetch('https://backend-sfrm.onrender.com/api/auth/verify-otp', {
+        method : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body   : JSON.stringify({ email, code, purpose, ...pending }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+
+      sessionStorage.removeItem('rentrow_pending');
+      login(data.user, data.token);
+      navigate('/');
+    } catch (err) {
+      setError(err.message);
+      setDigits(Array(6).fill(''));
+      inputRefs.current[0]?.focus();
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    const code = digits.join('');
+    if (code.length !== 6) return setError('Enter all 6 digits');
+    submitCode(code);
+  };
+
+  const handleResend = async () => {
+    setResending(true);
+    setError(null);
+    try {
+      await fetch('https://backend-sfrm.onrender.com/api/auth/send-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, purpose }),
+      });
+      setTimeLeft(OTP_EXPIRE_MIN * 60);
+      setResent(true);
+      setDigits(Array(6).fill(''));
+      inputRefs.current[0]?.focus();
+      setTimeout(() => setResent(false), 3000);
+    } catch {
+      setError('Failed to resend. Try again.');
+    } finally {
+      setResending(false);
+    }
+  };
+
   return (
     <div className="auth-page">
       <div className="auth-card animate-scale-in">
+
         {/* Icon */}
         <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
           <div style={{
@@ -158,16 +131,17 @@ export default function Verify() {
           }}>
             <ShieldCheck size={30} style={{ color: 'var(--primary)' }} />
           </div>
-          <h1 className="auth-title">Verify Your Email</h1>
+          <h1 className="auth-title">Verify your email</h1>
           <p className="auth-subtitle">
-            We've sent a 6-digit code to<br />
+            We sent a 6-digit code to<br />
             <strong style={{ color: 'var(--text-1)' }}>{email}</strong>
           </p>
         </div>
 
+        {/* Error */}
         {error && (
-          <div className="form-error">
-            <AlertCircle size={16} /> {error}
+          <div className="form-error" style={{ marginBottom: '1rem' }}>
+            <AlertCircle size={15} /> {error}
           </div>
         )}
 
@@ -181,27 +155,39 @@ export default function Verify() {
           </div>
         )}
 
-        <form onSubmit={handleVerify}>
-          <div className="form-group">
-            <label className="form-label" htmlFor="otp">Enter OTP</label>
-            <input
-              id="otp"
-              type="text"
-              className="form-input"
-              placeholder="000000"
-              value={otp}
-              onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
-              maxLength={6}
-              required
-              autoFocus
-              style={{ textAlign: 'center', fontSize: '1.5rem', letterSpacing: '0.5rem', fontWeight: 600 }}
-            />
+        {/* OTP Boxes */}
+        <form onSubmit={handleSubmit}>
+          <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center', marginBottom: '1.5rem' }}
+            onPaste={handlePaste}>
+            {digits.map((d, i) => (
+              <input
+                key={i}
+                ref={el => inputRefs.current[i] = el}
+                type="text"
+                inputMode="numeric"
+                maxLength={1}
+                value={d}
+                onChange={e => handleChange(i, e.target.value)}
+                onKeyDown={e => handleKeyDown(i, e)}
+                disabled={loading || expired}
+                style={{
+                  width: '46px', height: '56px',
+                  textAlign: 'center', fontSize: '1.5rem', fontWeight: 700,
+                  background: 'var(--surface-2)',
+                  border: `2px solid ${d ? 'var(--primary)' : 'var(--border)'}`,
+                  borderRadius: 'var(--radius-md)',
+                  color: 'var(--text-1)', outline: 'none',
+                  transition: 'border-color 0.15s',
+                  caretColor: 'var(--primary)',
+                }}
+              />
+            ))}
           </div>
 
           {/* Timer */}
           <div style={{ textAlign: 'center', marginBottom: '1.25rem' }}>
             {expired ? (
-              <span style={{ color: 'var(--red)', fontSize: '0.875rem' }}>Code expired. Please resend.</span>
+              <span style={{ color: 'var(--red)', fontSize: '0.875rem' }}>Code expired</span>
             ) : (
               <span style={{ color: 'var(--text-3)', fontSize: '0.875rem' }}>
                 Expires in <strong style={{ color: 'var(--text-2)' }}>{mm}:{ss}</strong>
@@ -212,38 +198,26 @@ export default function Verify() {
           <button
             type="submit"
             className="btn btn-primary w-full"
-            style={{ padding: '0.7rem', fontSize: '0.9375rem' }}
-            disabled={loading || otp.length !== 6 || expired}
+            style={{ padding: '0.7rem', fontSize: '0.9375rem', marginBottom: '0.75rem' }}
+            disabled={loading || expired || digits.join('').length < 6}
           >
-            {loading ? 'Verifying...' : 'Verify & Continue'}
+            {loading ? 'Verifying…' : 'Verify Code'}
           </button>
         </form>
 
-        <div style={{ marginTop: '1.5rem', textAlign: 'center' }}>
-          <button
-            onClick={handleResendOTP}
-            disabled={resending || expired === false}
-            style={{
-              background: 'none',
-              border: 'none',
-              color: (resending || !expired) ? 'var(--text-3)' : 'var(--primary)',
-              cursor: (resending || !expired) ? 'not-allowed' : 'pointer',
-              fontSize: '0.875rem',
-              fontWeight: 500,
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '0.5rem'
-            }}
-          >
-            <RefreshCw size={14} className={resending ? 'spin' : ''} />
-            {resending ? 'Sending...' : "Didn't receive code? Resend"}
-          </button>
-        </div>
+        {/* Resend */}
+        <button
+          className="btn btn-ghost w-full btn-sm"
+          onClick={handleResend}
+          disabled={resending}
+          style={{ color: 'var(--text-3)' }}
+        >
+          <RefreshCw size={14} />
+          {resending ? 'Sending…' : "Didn't receive it? Resend"}
+        </button>
 
-        <div className="auth-footer" style={{ marginTop: '1rem' }}>
-          <Link to={purpose === 'REGISTER' ? '/register' : '/login'}>
-            ← Back to {purpose === 'REGISTER' ? 'Sign up' : 'Sign in'}
-          </Link>
+        <div className="auth-footer" style={{ marginTop: '1.25rem' }}>
+          <Link to={purpose === 'LOGIN' ? '/login' : '/register'}>← Back</Link>
         </div>
       </div>
     </div>
