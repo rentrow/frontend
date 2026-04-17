@@ -2,6 +2,9 @@ import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { AlertCircle } from 'lucide-react';
 
+// Use environment variable or fallback to deployed backend
+const API_URL = import.meta.env.VITE_API_URL || 'https://backend-sfrm.onrender.com';
+
 export default function Register() {
   const [name,     setName]     = useState('');
   const [email,    setEmail]    = useState('');
@@ -19,7 +22,8 @@ export default function Register() {
       // Save pending registration data (no password — OTP-only)
       sessionStorage.setItem('rentrow_pending', JSON.stringify({ name, phone, role }));
 
-      const res  = await fetch('http://localhost:5000/api/auth/send-otp', {
+      // CHANGE THIS LINE - use API_URL instead of localhost
+      const res  = await fetch(`${API_URL}/api/auth/send-otp`, {
         method : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body   : JSON.stringify({ email, purpose: 'REGISTER' }),
