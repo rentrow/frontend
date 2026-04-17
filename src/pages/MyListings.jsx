@@ -7,9 +7,6 @@ import {
 } from 'lucide-react';
 import { TYPE_LABEL, TYPE_EMOJI } from '../constants/propertyTypes';
 
-// Use environment variable or fallback to Render backend
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://backend-sfrm.onrender.com';
-
 const STATUS_CONFIG = {
   ACTIVE          : { label: 'Active',          color: 'var(--green)',   bg: 'var(--green-subtle)',  icon: <CheckCircle2 size={13}/> },
   PENDING_PAYMENT : { label: 'Awaiting Payment', color: 'var(--amber)',   bg: 'rgba(245,158,11,0.1)', icon: <Clock size={13}/>        },
@@ -39,8 +36,7 @@ export default function MyListings() {
 
   const fetch_ = () => {
     setLoading(true);
-    // CHANGED: Use API_BASE_URL instead of localhost
-    fetch(`${API_BASE_URL}/api/my-listings`, {
+    fetch('http://localhost:5000/api/my-listings', {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then(r => r.json())
@@ -58,8 +54,7 @@ export default function MyListings() {
     setBusyId(id);
     setError(null);
     try {
-      // CHANGED: Use API_BASE_URL instead of localhost
-      const res = await fetch(`${API_BASE_URL}/api/properties/${id}${endpoint}`, {
+      const res = await fetch(`https://backend-sfrm.onrender.com/api/properties/${id}${endpoint}`, {
         method,
         headers: { Authorization: `Bearer ${token}` },
       });
