@@ -3,9 +3,6 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { ArrowLeft, Send, ShieldAlert } from 'lucide-react';
 
-// Use environment variable or fallback to Render backend
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://backend-sfrm.onrender.com';
-
 const FALLBACK = 'https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?auto=format&fit=crop&w=200&q=60';
 
 function formatTime(d) {
@@ -26,8 +23,7 @@ export default function Thread() {
   const bottomRef  = useRef(null);
 
   const fetchThread = async () => {
-    // CHANGED: Use API_BASE_URL instead of localhost
-    const r = await fetch(`${API_BASE_URL}/api/messages/${propertyId}`, {
+    const r = await fetch(`https://backend-sfrm.onrender.com/api/messages/${propertyId}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     const d = await r.json();
@@ -37,8 +33,7 @@ export default function Thread() {
   useEffect(() => {
     if (!user) return;
     // Fetch property info
-    // CHANGED: Use API_BASE_URL instead of localhost
-    fetch(`${API_BASE_URL}/api/properties`)
+    fetch(`https://backend-sfrm.onrender.com/api/properties`)
       .then(r => r.json())
       .then(list => {
         const p = list.find(x => x.id === parseInt(propertyId));
@@ -67,8 +62,7 @@ export default function Thread() {
 
     setSending(true);
     try {
-      // CHANGED: Use API_BASE_URL instead of localhost
-      const res = await fetch(`${API_BASE_URL}/api/messages`, {
+      const res = await fetch('https://backend-sfrm.onrender.com/api/messages', {
         method : 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body   : JSON.stringify({ propertyId: parseInt(propertyId), receiverId, body }),
