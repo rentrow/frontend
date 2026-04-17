@@ -3,6 +3,9 @@ import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { ShieldCheck, RefreshCw, AlertCircle } from 'lucide-react';
 
+// Use environment variable or fallback to Render backend
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://backend-sfrm.onrender.com';
+
 const OTP_EXPIRE_MIN = 10;
 
 export default function Verify() {
@@ -68,7 +71,8 @@ export default function Verify() {
     const pending = JSON.parse(sessionStorage.getItem('rentrow_pending') || '{}');
 
     try {
-      const res  = await fetch('http://localhost:5000/api/auth/verify-otp', {
+      // CHANGED: Use API_BASE_URL instead of localhost
+      const res  = await fetch(`${API_BASE_URL}/api/auth/verify-otp`, {
         method : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body   : JSON.stringify({ email, code, purpose, ...pending }),
@@ -99,7 +103,8 @@ export default function Verify() {
     setResending(true);
     setError(null);
     try {
-      await fetch('http://localhost:5000/api/auth/send-otp', {
+      // CHANGED: Use API_BASE_URL instead of localhost
+      await fetch(`${API_BASE_URL}/api/auth/send-otp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, purpose }),
