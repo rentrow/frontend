@@ -150,7 +150,7 @@ export default function PostAd() {
 
       // 2. Open Razorpay Widget
       const options = {
-        key: 'rzp_test_placeholder', // REPLACE THIS with your Razorpay Key ID
+        key: 'rzp_live_SeSFu9TFPTRMlt',
         amount: orderData.amount,
         currency: orderData.currency,
         name: 'RentRow',
