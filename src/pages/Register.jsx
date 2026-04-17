@@ -1,37 +1,85 @@
-import { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import { AlertCircle } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
+import { AlertCircle, CheckCircle2 } from 'lucide-react';
 
-// Use environment variable or fallback to deployed backend
 const API_URL = import.meta.env.VITE_API_URL || 'https://backend-sfrm.onrender.com';
 
-export default function Register() {
-  const [name,     setName]     = useState('');
-  const [email,    setEmail]    = useState('');
-  const [phone,    setPhone]    = useState('');
-  const [role,     setRole]     = useState('USER');
-  const [error,    setError]    = useState(null);
-  const [loading,  setLoading]  = useState(false);
-  const navigate   = useNavigate();
+export default function Verify() {
+  const [otp, setOtp] = useState('');
+  const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [countdown, setCountdown] = useState(0);
+  
+  const navigate = useNavigate();
+  const location = useLocation();
+  
+  // Get email and purpose from URL params
+  const params = new URLSearchParams(location.search);
+  const email = params.get('email');
+  const purpose = params.get('purpose'); // 'REGISTER' or 'LOGIN'
 
-  const handleSubmit = async (e) => {
+  // Redirect if no email
+  useEffect(() => {
+    if (!email) {
+      navigate('/register');
+    }
+  }, [email, navigate]);
+
+  // Countdown for resend OTP
+  useEffect(() => {
+    if (countdown > 0) {
+      const timer = setTimeout(() => setCountdown(countdown - 1), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [countdown]);
+
+  const handleVerify = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
+
     try {
-      // Save pending registration data (no password — OTP-only)
-      sessionStorage.setItem('rentrow_pending', JSON.stringify({ name, phone, role }));
+      // Get pending registration data if registering
+      let pendingData = {};
+      if (purpose === 'REGISTER') {
+        const pending = sessionStorage.getItem('rentrow_pending');
+        if (pending) {
+          pendingData = JSON.parse(pending);
+        }
+      }
 
-      // CHANGE THIS LINE - use API_URL instead of localhost
-      const res  = await fetch(`${API_URL}/api/auth/send-otp`, {
-        method : 'POST',
+      const res = await fetch(`${API_URL}/api/auth/verify-otp`, {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body   : JSON.stringify({ email, purpose: 'REGISTER' }),
+        body: JSON.stringify({
+          email,
+          code: otp,
+          purpose,
+          name: pendingData.name,
+          phone: pendingData.phone,
+          role: pendingData.role
+        }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to send OTP.');
 
-      navigate(`/verify?email=${encodeURIComponent(email)}&purpose=REGISTER`);
+      const data = await res.json();
+      
+      if (!res.ok) {
+        throw new Error(data.error || 'Verification failed');
+      }
+
+      // Clear pending data
+      sessionStorage.removeItem('rentrow_pending');
+      
+      // Save token and user data
+      localStorage.setItem('rentrow_token', data.token);
+      localStorage.setItem('rentrow_user', JSON.stringify(data.user));
+      
+      // Redirect based on purpose
+      if (purpose === 'REGISTER') {
+        navigate('/');
+      } else {
+        navigate('/');
+      }
     } catch (err) {
       setError(err.message);
     } finally {
@@ -39,13 +87,55 @@ export default function Register() {
     }
   };
 
+  const handleResendOTP = async () => {
+    if (countdown > 0) return;
+    
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const res = await fetch(`${API_URL}/api/auth/send-otp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, purpose }),
+      });
+      
+      const data = await res.json();
+      
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to resend OTP');
+      }
+      
+      // Show success message
+      setCountdown(60);
+      
+      // In development, show OTP in console
+      if (data.dev_otp) {
+        console.log('Development OTP:', data.dev_otp);
+        alert(`Demo OTP: ${data.dev_otp} (check console)`);
+      } else {
+        alert('OTP resent successfully!');
+      }
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (!email) {
+    return null;
+  }
+
   return (
     <div className="auth-page">
       <div className="auth-card animate-scale-in">
-
         <div className="auth-header">
-          <h1 className="auth-title">Create account</h1>
-          <p className="auth-subtitle">Join RentRow — we'll verify your email via OTP</p>
+          <h1 className="auth-title">Verify Your Email</h1>
+          <p className="auth-subtitle">
+            We've sent a 6-digit code to<br />
+            <strong>{email}</strong>
+          </p>
         </div>
 
         {error && (
@@ -54,68 +144,54 @@ export default function Register() {
           </div>
         )}
 
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleVerify}>
           <div className="form-group">
-            <label className="form-label" htmlFor="reg-name">Full name</label>
+            <label className="form-label" htmlFor="otp">Enter OTP</label>
             <input
-              id="reg-name" type="text" className="form-input"
-              placeholder="John Doe"
-              value={name} onChange={e => setName(e.target.value)} required
+              id="otp"
+              type="text"
+              className="form-input"
+              placeholder="000000"
+              value={otp}
+              onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+              maxLength={6}
+              required
+              autoFocus
+              style={{ textAlign: 'center', fontSize: '1.25rem', letterSpacing: '0.25rem' }}
             />
-          </div>
-
-          <div className="form-group">
-            <label className="form-label" htmlFor="reg-email">Email address</label>
-            <input
-              id="reg-email" type="email" className="form-input"
-              placeholder="you@example.com"
-              value={email} onChange={e => setEmail(e.target.value)} required
-            />
-          </div>
-
-          <div className="form-group">
-            <label className="form-label" htmlFor="reg-phone">Phone number <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>(optional)</span></label>
-            <input
-              id="reg-phone" type="tel" className="form-input"
-              placeholder="+91 98765 43210"
-              value={phone} onChange={e => setPhone(e.target.value)}
-            />
-          </div>
-
-          <div className="form-group" style={{ marginBottom: '1.5rem' }}>
-            <label className="form-label">I am a…</label>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
-              {[
-                { val: 'USER',     label: 'Tenant',   desc: 'Looking for a place' },
-                { val: 'LANDLORD', label: 'Landlord', desc: 'Listing a property'  },
-              ].map(({ val, label, desc }) => (
-                <button
-                  key={val} type="button" onClick={() => setRole(val)}
-                  style={{
-                    padding: '0.875rem', borderRadius: 'var(--radius-md)',
-                    border: `1px solid ${role === val ? 'var(--primary)' : 'var(--border)'}`,
-                    background: role === val ? 'var(--primary-subtle)' : 'var(--surface-2)',
-                    cursor: 'pointer', textAlign: 'left', transition: 'all 0.15s',
-                  }}
-                >
-                  <div style={{ fontWeight: 600, fontSize: '0.875rem', color: role === val ? 'var(--primary-hover)' : 'var(--text-1)' }}>{label}</div>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-3)', marginTop: '0.125rem' }}>{desc}</div>
-                </button>
-              ))}
-            </div>
           </div>
 
           <button
-            type="submit" className="btn btn-primary w-full"
+            type="submit"
+            className="btn btn-primary w-full"
             style={{ padding: '0.7rem', fontSize: '0.9375rem' }}
-            disabled={loading}
+            disabled={loading || otp.length !== 6}
           >
-            {loading ? 'Sending OTP…' : 'Continue with Email OTP'}
+            {loading ? 'Verifying...' : 'Verify & Continue'}
           </button>
         </form>
 
-        <div className="auth-footer">
-          Already have an account? <Link to="/login">Sign in</Link>
+        <div style={{ marginTop: '1.5rem', textAlign: 'center' }}>
+          <button
+            onClick={handleResendOTP}
+            disabled={countdown > 0 || loading}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: countdown > 0 ? 'var(--text-3)' : 'var(--primary)',
+              cursor: countdown > 0 ? 'not-allowed' : 'pointer',
+              fontSize: '0.875rem',
+              fontWeight: 500,
+            }}
+          >
+            {countdown > 0 ? `Resend OTP in ${countdown}s` : 'Resend OTP'}
+          </button>
+        </div>
+
+        <div className="auth-footer" style={{ marginTop: '1rem' }}>
+          <Link to={purpose === 'REGISTER' ? '/register' : '/login'}>
+            ← Back to {purpose === 'REGISTER' ? 'Sign up' : 'Sign in'}
+          </Link>
         </div>
       </div>
     </div>
