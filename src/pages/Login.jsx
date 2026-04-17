@@ -3,6 +3,9 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { AlertCircle } from 'lucide-react';
 
+// Use environment variable or fallback to Render backend
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://backend-sfrm.onrender.com';
+
 export default function Login() {
   const [tab,      setTab]      = useState('otp');  // 'otp' | 'password'
   const [email,    setEmail]    = useState('');
@@ -17,7 +20,8 @@ export default function Login() {
     e.preventDefault();
     setLoading(true); setError(null);
     try {
-      const res  = await fetch('http://localhost:5000/api/auth/send-otp', {
+      // CHANGED: Use API_BASE_URL instead of localhost
+      const res  = await fetch(`${API_BASE_URL}/api/auth/send-otp`, {
         method : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body   : JSON.stringify({ email, purpose: 'LOGIN' }),
@@ -37,7 +41,8 @@ export default function Login() {
     e.preventDefault();
     setLoading(true); setError(null);
     try {
-      const res  = await fetch('http://localhost:5000/api/auth/login', {
+      // CHANGED: Use API_BASE_URL instead of localhost
+      const res  = await fetch(`${API_BASE_URL}/api/auth/login`, {
         method : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body   : JSON.stringify({ email, password }),
