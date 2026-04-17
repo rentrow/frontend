@@ -10,6 +10,9 @@ import { useAuth } from '../context/AuthContext';
 const FALLBACK_IMG = 'https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?auto=format&fit=crop&w=800&q=80';
 const DEFAULT_RADIUS_KM = 4;
 
+// Use environment variable or fallback to Render backend
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://backend-sfrm.onrender.com';
+
 const mapsUrl = (lat, lng) =>
   lat && lng ? `https://www.google.com/maps?q=${lat},${lng}&z=15` : null;
 
@@ -66,7 +69,8 @@ export default function HomePage() {
       p.set('lng',    proxCoords.lng);
       p.set('radius', radius);
     }
-    return `http://localhost:5000/api/properties?${p}`;
+    // CHANGED: Use API_BASE_URL instead of localhost
+    return `${API_BASE_URL}/api/properties?${p}`;
   }, [activeType, activeLocality, debSearch, proxCoords, radius]);
 
   /* Fetch properties */
@@ -80,7 +84,8 @@ export default function HomePage() {
 
   /* Fetch localities once on mount */
   useEffect(() => {
-    fetch('http://localhost:5000/api/properties')
+    // CHANGED: Use API_BASE_URL instead of localhost
+    fetch(`${API_BASE_URL}/api/properties`)
       .then(r => r.json())
       .then(d => {
         const locs = [...new Set(d.map(p => p.locality).filter(Boolean))].sort();
